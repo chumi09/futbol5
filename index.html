@@ -14,7 +14,7 @@ select{-webkit-appearance:auto;}
 .header-top{display:flex;align-items:center;gap:10px;padding:14px 0 8px;}
 .logo-title{font-weight:800;font-size:18px;}
 .logo-sub{color:#4ade80;font-size:11px;font-weight:600;letter-spacing:1px;}
-.tabs{display:flex;overflow-x:auto;gap:0;}
+.tabs{display:flex;overflowm-x:auto;gap:0;}
 .tab{background:none;border:none;border-bottom:2px solid transparent;padding:10px 16px;font-weight:600;font-size:13px;color:#64748b;white-space:nowrap;transition:all .15s;}
 .tab.active{color:#4ade80;border-bottom-color:#4ade80;}
 .content{max-width:720px;margin:0 auto;padding:20px 16px 80px;}
@@ -33,9 +33,8 @@ input[type=date]{color-scheme:dark;}
 .btn-red{background:#ef444422;color:#ef4444;border:1px solid #ef444444;}
 .btn-yellow{background:#fbbf24;color:#0f172a;}
 .btn-full{width:100%;text-align:center;}
-.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .col{display:flex;flex-direction:column;gap:12px;}
-.player-row{display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:8px;padding:10px 14px;flex-wrap:wrap;}
+.player-row{display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:8px;padding:10px 14px;flex-wrap:wrap;margin-bottom:8px;}
 .match-row{background:#0f172a;border-radius:8px;padding:12px 14px;margin-bottom:8px;}
 .stars{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;}
 .star-btn{width:34px;height:34px;border-radius:6px;border:none;font-weight:700;font-size:13px;background:#0f172a;color:#64748b;}
@@ -51,11 +50,13 @@ input[type=date]{color-scheme:dark;}
 .summary-label{color:#64748b;font-size:12px;margin-top:2px;}
 .chip{display:inline-block;padding:8px 14px;border-radius:8px;border:2px solid #334155;background:transparent;color:#94a3b8;font-weight:600;font-size:14px;margin:4px;}
 .chip.active{border-color:#4ade80;background:#4ade8022;color:#4ade80;}
+.chip.blocked{border-color:#ef444466;background:#ef444411;color:#ef4444;opacity:.7;}
 .pay-row{display:flex;align-items:center;gap:10px;background:#0f172a;border-radius:8px;padding:10px 14px;margin-bottom:8px;}
 .pay-btn{padding:8px 14px;border-radius:8px;border:2px solid #334155;background:transparent;color:#64748b;font-weight:700;font-size:14px;}
 .pay-btn.paid{border-color:#fbbf24;background:#fbbf2422;color:#fbbf24;}
 .hidden{display:none;}
 .back-btn{background:none;border:none;color:#4ade80;font-weight:700;font-size:15px;padding:0;margin-bottom:16px;}
+.debt-alert{background:#ef444411;border:2px solid #ef4444;border-radius:12px;padding:16px;margin-bottom:16px;}
 </style>
 </head>
 <body>
@@ -83,6 +84,20 @@ input[type=date]{color-scheme:dark;}
       <select class="styled" id="sel-player" onchange="onPlayerSelect()">
         <option value="">— Selecciona tu nombre —</option>
       </select>
+    </div>
+    <!-- Sincronización visible para todos -->
+    <div id="sync-section" class="hidden">
+      <div class="card" style="border-color:#38bdf844">
+        <div class="card-title" style="color:#38bdf8">🔄 Sincronizar datos</div>
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:14px">Para ver los mismos datos que el resto del grupo, importa el código que te mande el admin por WhatsApp.</p>
+        <div class="col">
+          <div>
+            <label>Pega aquí el código que te enviaron</label>
+            <textarea id="import-input-player" rows="3" placeholder="Pega el código aquí..." style="background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 12px;font-size:14px;width:100%;resize:none"></textarea>
+          </div>
+          <button class="btn btn-full" style="background:#38bdf8;color:#0f172a" onclick="importDataPlayer()">Importar datos</button>
+        </div>
+      </div>
     </div>
     <div id="votar-match-section" class="hidden">
       <div class="card">
@@ -128,7 +143,6 @@ input[type=date]{color-scheme:dark;}
 const ADMIN_PASS = "admin123";
 const DAYS = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 
-// ── Data ──
 function load(){
   try{const r=localStorage.getItem("futbol5");if(r)return JSON.parse(r);}catch{}
   return{players:[],matches:[],matchDay:null,fieldCost:10};
@@ -139,23 +153,19 @@ let isAdmin = false;
 let currentTab = "votar";
 let equiposSelected = [];
 let statsDetail = null;
+let mpSelected = [];
+let voteValues = {};
 
 // ── Helpers ──
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
-
-function calcAvg(pid, matches){
+function calcAvg(pid,matches){
   const v=[];
-  for(const m of matches){
-    if(!m.votes)continue;
-    for(const[vid,vv]of Object.entries(m.votes))
-      if(m.paid?.[vid]&&vv[pid]!==undefined)v.push(vv[pid]);
-  }
+  for(const m of matches){if(!m.votes)continue;for(const[vid,vv]of Object.entries(m.votes))if(m.paid?.[vid]&&vv[pid]!==undefined)v.push(vv[pid]);}
   return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;
 }
 function calcMatchAvg(pid,m){
   const v=[];if(!m.votes)return null;
-  for(const[vid,vv]of Object.entries(m.votes))
-    if(m.paid?.[vid]&&vv[pid]!==undefined)v.push(vv[pid]);
+  for(const[vid,vv]of Object.entries(m.votes))if(m.paid?.[vid]&&vv[pid]!==undefined)v.push(vv[pid]);
   return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;
 }
 function calcStreak(pid){
@@ -176,8 +186,7 @@ function calcPay(pid){
 function getMVP(m){
   let best=null,bestA=-1;
   for(const pid of m.playerIds){const a=calcMatchAvg(pid,m);if(a!==null&&a>bestA){bestA=a;best=pid;}}
-  if(!best)return null;
-  return{id:best,name:D.players.find(p=>p.id===best)?.name||"?",avg:bestA};
+  return best?{id:best,name:D.players.find(p=>p.id===best)?.name||"?",avg:bestA}:null;
 }
 function nextDay(di){
   const t=new Date(),d=new Date(t),diff=(di-t.getDay()+7)%7||7;
@@ -185,13 +194,10 @@ function nextDay(di){
 }
 function playerRating(pid){
   const a=calcAvg(pid,D.matches);
-  if(a!==null)return a;
-  return D.players.find(p=>p.id===pid)?.prelimRating||5;
+  return a!==null?a:(D.players.find(p=>p.id===pid)?.prelimRating||5);
 }
-function fmt(n){return n!==null?n.toFixed(1):"—";}
 function badge(text,color){return`<span class="badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${text}</span>`;}
 function typeColor(t){return t==="fijo"?"#4ade80":t==="sustituto"?"#fb923c":"#a78bfa";}
-
 function generateTeams(players){
   const s=[...players].sort((a,b)=>b.r-a.r);
   const t1=[],t2=[];s.forEach((p,i)=>{if(i%2===0)t1.push(p);else t2.push(p);});
@@ -199,11 +205,22 @@ function generateTeams(players){
   return{t1,t2,a1:avg(t1).toFixed(1),a2:avg(t2).toFixed(1)};
 }
 
+// Devuelve la deuda pendiente de un jugador: {matchId, matchDate, amount, booker}
+function getPendingDebt(pid){
+  const sorted=[...D.matches].sort((a,b)=>a.date.localeCompare(b.date));
+  for(const m of sorted){
+    if(m.playerIds.includes(pid)&&!m.paid?.[pid]&&m.booker){
+      return{matchId:m.id,matchDate:m.date,amount:m.costPerPlayer||1,booker:m.booker};
+    }
+  }
+  return null;
+}
+
 // ── Flash ──
 function flash(elId,msg,type="green"){
   const el=document.getElementById(elId);if(!el)return;
   el.innerHTML=`<div class="flash ${type}">${msg}</div>`;
-  setTimeout(()=>{if(el)el.innerHTML="";},3000);
+  setTimeout(()=>{if(el)el.innerHTML="";},3500);
 }
 
 // ── Tabs ──
@@ -223,31 +240,62 @@ function showTab(tab){
 
 // ── VOTAR ──
 function renderVotar(){
-  // Players dropdown
   const sp=document.getElementById("sel-player");
   const curVal=sp.value;
   sp.innerHTML='<option value="">— Selecciona tu nombre —</option>';
   D.players.forEach(p=>{sp.innerHTML+=`<option value="${p.id}"${curVal===p.id?" selected":""}>${p.name}</option>`;});
+  // Mostrar sync si no hay jugadores
+  const syncSec=document.getElementById("sync-section");
+  if(D.players.length===0){syncSec.classList.remove("hidden");}
+  else{syncSec.classList.add("hidden");}
   onPlayerSelect();
 }
+
 function onPlayerSelect(){
   const pid=document.getElementById("sel-player").value;
   const sec=document.getElementById("votar-match-section");
   const main=document.getElementById("votar-main");
-  if(!pid){sec.classList.add("hidden");main.classList.add("hidden");return;}
+  const syncSec=document.getElementById("sync-section");
+
+  if(!pid){
+    sec.classList.add("hidden");main.classList.add("hidden");
+    if(D.players.length===0)syncSec.classList.remove("hidden");
+    return;
+  }
+
+  // Mostrar sección sync siempre tras identificarse
+  syncSec.classList.remove("hidden");
+
+  // Comprobar deuda pendiente
+  const debt=getPendingDebt(pid);
+  if(debt){
+    const bookerName=D.players.find(p=>p.id===debt.booker)?.name||"el reservador";
+    main.classList.remove("hidden");
+    sec.classList.add("hidden");
+    main.innerHTML=`<div class="debt-alert">
+      <div style="font-size:22px;margin-bottom:8px">🚫</div>
+      <div style="color:#ef4444;font-weight:800;font-size:16px;margin-bottom:6px">Tienes una deuda pendiente</div>
+      <div style="color:#94a3b8;font-size:14px;margin-bottom:12px">
+        No pagaste <strong style="color:#fbbf24">${debt.amount}€</strong> del partido del <strong style="color:#e2e8f0">${debt.matchDate}</strong> a <strong style="color:#e2e8f0">${bookerName}</strong>.
+      </div>
+      <div style="color:#94a3b8;font-size:13px">No puedes apuntarte a nuevos partidos hasta que el reservador o el admin confirmen tu pago.</div>
+    </div>`;
+    return;
+  }
+
   sec.classList.remove("hidden");
-  // Matches dropdown
   const sm=document.getElementById("sel-match");
   const curVal=sm.value;
   sm.innerHTML='<option value="">— Selecciona el partido —</option>';
   D.matches.filter(m=>!m.closed).forEach(m=>{
     const bn=m.booker?D.players.find(p=>p.id===m.booker)?.name:null;
     const pc=Object.values(m.paid||{}).filter(Boolean).length;
-    sm.innerHTML+=`<option value="${m.id}"${curVal===m.id?" selected":""}>${m.date} · ${bn?'🔑'+bn:'sin reservador'} · 💶${pc}/${m.playerIds.length}</option>`;
+    sm.innerHTML+=`<option value="${m.id}"${curVal===m.id?" selected":""}>${m.date} · ${bn?"🔑"+bn:"sin reservador"} · 💶${pc}/${m.playerIds.length}</option>`;
   });
   if(curVal)onMatchSelect();
   else main.classList.add("hidden");
 }
+
 function onMatchSelect(){
   const pid=document.getElementById("sel-player").value;
   const mid=document.getElementById("sel-match").value;
@@ -259,6 +307,7 @@ function onMatchSelect(){
   if(!m.playerIds.includes(pid)){main.innerHTML='<div class="card" style="color:#fb923c">No participas en este partido.</div>';return;}
   renderVotarMain(pid,m);
 }
+
 function renderVotarMain(pid,m){
   const main=document.getElementById("votar-main");
   const isBooker=m.booker===pid;
@@ -279,11 +328,11 @@ function renderVotarMain(pid,m){
   }
   html+="</div>";
 
-  // Panel pagos (solo reservador)
-  if(isBooker){
+  // Panel pagos — reservador o admin
+  if(isBooker||isAdmin){
     html+=`<div class="card" style="border-color:#fbbf2444">
-      <div class="card-title" style="color:#fbbf24">💶 Gestión de pagos</div>
-      <p style="color:#94a3b8;font-size:13px;margin-bottom:12px">Los votos solo cuentan una vez marcado como pagado.</p>`;
+      <div class="card-title" style="color:#fbbf24">💶 Gestión de pagos${isAdmin&&!isBooker?' <span style="color:#a78bfa;font-size:12px">(como admin)</span>':""}</div>
+      <p style="color:#94a3b8;font-size:13px;margin-bottom:12px">Los votos solo cuentan una vez marcado como pagado. Pagar desbloquea al jugador para el siguiente partido.</p>`;
     mPlayers.forEach(p=>{
       const pd=m.paid?.[p.id]||false;
       const hasVoted=!!m.votes?.[p.id];
@@ -302,7 +351,7 @@ function renderVotarMain(pid,m){
       <span style="font-size:24px">${isPaid?"✅":"⏳"}</span>
       <div>
         <div style="font-weight:700;color:${isPaid?"#fbbf24":"#ef4444"};font-size:15px">${isPaid?"Pago confirmado":"Pago pendiente"}</div>
-        <div style="color:#94a3b8;font-size:13px">${isPaid?"Tus votos contarán en el ranking.":`Debes ${m.costPerPlayer||1}€ al reservador. Puedes votar pero tus puntuaciones no se aplican hasta que pagues.`}</div>
+        <div style="color:#94a3b8;font-size:13px">${isPaid?"Tus votos contarán en el ranking.":`Debes ${m.costPerPlayer||1}€ a ${bookerName}. Puedes votar pero tus puntuaciones no se aplican hasta que pagues.`}</div>
       </div>
     </div>`;
   }
@@ -317,18 +366,16 @@ function renderVotarMain(pid,m){
       html+=`<div style="margin-bottom:18px">
         <div style="color:#e2e8f0;font-weight:600;margin-bottom:8px;font-size:15px">${p.name}</div>
         <div class="stars" id="stars-${p.id}">
-          ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="star-btn" onclick="setStar('${p.id}',${n},'${m.id}','${pid}')" id="star-${p.id}-${n}">${n}</button>`).join("")}
+          ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="star-btn" onclick="setStar('${p.id}',${n})" id="star-${p.id}-${n}">${n}</button>`).join("")}
         </div>
       </div>`;
     });
-    html+=`<button class="btn btn-full" style="margin-top:8px" onclick="submitVotes('${m.id}','${pid}')">Enviar puntuaciones</button>
-    </div>`;
+    html+=`<button class="btn btn-full" style="margin-top:8px" onclick="submitVotes('${m.id}','${pid}')">Enviar puntuaciones</button></div>`;
   }
   main.innerHTML=html;
 }
 
-let voteValues={};
-function setStar(playerId,val,mid,pid){
+function setStar(playerId,val){
   voteValues[playerId]=val;
   for(let n=1;n<=10;n++){
     const el=document.getElementById(`star-${playerId}-${n}`);
@@ -359,11 +406,25 @@ function submitVotes(mid,pid){
   renderVotarMain(pid,m);
 }
 
+// ── Import para jugadores ──
+function importDataPlayer(){
+  const val=document.getElementById("import-input-player")?.value?.trim();
+  if(!val){flash("flash-votar","Pega el código primero","red");return;}
+  try{
+    const json=decodeURIComponent(escape(atob(val)));
+    const parsed=JSON.parse(json);
+    if(!parsed.players||!parsed.matches){flash("flash-votar","Código no válido","red");return;}
+    D=parsed;save(D);
+    flash("flash-votar","Datos sincronizados ✓");
+    document.getElementById("import-input-player").value="";
+    renderVotar();
+  }catch(e){flash("flash-votar","Código incorrecto, comprueba que lo has copiado entero","red");}
+}
+
 // ── EQUIPOS ──
 function renderEquipos(){
   const pwr=D.players.map(p=>({id:p.id,name:p.name,r:playerRating(p.id)}));
-  if(!equiposSelected.length||equiposSelected.some(id=>!D.players.find(p=>p.id===id)))
-    equiposSelected=pwr.map(p=>p.id);
+  if(!equiposSelected.length)equiposSelected=pwr.map(p=>p.id);
   const ep=document.getElementById("equipos-players");
   ep.innerHTML=pwr.map(p=>`<button class="chip${equiposSelected.includes(p.id)?" active":""}" onclick="toggleEquipo('${p.id}')">${p.name} <span style="opacity:.7">(${p.r.toFixed(1)})</span></button>`).join("");
   renderTeams();
@@ -377,15 +438,14 @@ function renderTeams(){
   const pwr=D.players.filter(p=>equiposSelected.includes(p.id)).map(p=>({id:p.id,name:p.name,r:playerRating(p.id)}));
   if(pwr.length<2){er.innerHTML='<div class="card" style="color:#64748b">Selecciona al menos 2 jugadores.</div>';return;}
   const{t1,t2,a1,a2}=generateTeams(pwr);
-  const teamHTML=(team,name,color,avg)=>`
-    <div class="team-card" style="border-color:${color}44">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="color:${color};font-weight:700;font-size:16px">${name}</span>
-        <span style="background:${color}22;color:${color};border-radius:8px;padding:2px 10px;font-weight:700">★ ${avg}</span>
-      </div>
-      ${team.map(p=>`<div style="display:flex;justify-content:space-between;background:#0f172a;border-radius:6px;padding:8px 10px;margin-bottom:6px"><span style="color:#e2e8f0;font-size:14px">${p.name}</span><span style="color:#94a3b8;font-size:13px">${p.r.toFixed(1)}</span></div>`).join("")}
-    </div>`;
-  er.innerHTML=`<div class="team-grid">${teamHTML(t1,"Equipo 1","#4ade80",a1)}${teamHTML(t2,"Equipo 2","#fb923c",a2)}</div>`;
+  const tH=(team,name,color,avg)=>`<div class="team-card" style="border-color:${color}44">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="color:${color};font-weight:700;font-size:16px">${name}</span>
+      <span style="background:${color}22;color:${color};border-radius:8px;padding:2px 10px;font-weight:700">★ ${avg}</span>
+    </div>
+    ${team.map(p=>`<div style="display:flex;justify-content:space-between;background:#0f172a;border-radius:6px;padding:8px 10px;margin-bottom:6px"><span style="color:#e2e8f0;font-size:14px">${p.name}</span><span style="color:#94a3b8;font-size:13px">${p.r.toFixed(1)}</span></div>`).join("")}
+  </div>`;
+  er.innerHTML=`<div class="team-grid">${tH(t1,"Equipo 1","#4ade80",a1)}${tH(t2,"Equipo 2","#fb923c",a2)}</div>`;
 }
 
 // ── STATS ──
@@ -394,22 +454,20 @@ function renderStats(){
   const sm=[...D.matches].sort((a,b)=>a.date.localeCompare(b.date));
   const mvpC={};
   D.matches.forEach(m=>{const mvp=getMVP(m);if(mvp)mvpC[mvp.id]=(mvpC[mvp.id]||0)+1;});
-
   const players=D.players.map(p=>{
     const avg=calcAvg(p.id,D.matches);
     const vv=D.matches.reduce((acc,m)=>{if(!m.votes)return acc;for(const[vid,v]of Object.entries(m.votes))if(m.paid?.[vid]&&v[p.id]!==undefined)acc++;return acc;},0);
     const pv=D.matches.reduce((acc,m)=>{if(!m.votes)return acc;for(const[vid,v]of Object.entries(m.votes))if(!m.paid?.[vid]&&v[p.id]!==undefined)acc++;return acc;},0);
-    const sv=sm.filter(m=>m.playerIds.includes(p.id)).map(m=>calcMatchAvg(p.id,m)).filter(v=>v!==null);
     const pay=calcPay(p.id),streak=calcStreak(p.id),trend=calcTrend(p.id);
     const display=avg!==null?avg:(p.prelimRating||5);
-    return{...p,avg,vv,pv,sv,pay,streak,trend,display};
+    const debt=getPendingDebt(p.id);
+    return{...p,avg,vv,pv,pay,streak,trend,display,debt};
   }).sort((a,b)=>b.display-a.display);
 
   const medals=["🥇","🥈","🥉"];
   const trendColor=t=>t==="↑"?"#4ade80":t==="↓"?"#ef4444":"#475569";
 
-  let html=`<div class="card">
-    <div class="card-title">🏆 Ranking</div>
+  let html=`<div class="card"><div class="card-title">🏆 Ranking</div>
     <p style="color:#64748b;font-size:13px;margin-top:-8px;margin-bottom:14px">Solo votos de jugadores que han pagado · Toca para ver historial</p>`;
   players.forEach((p,i)=>{
     html+=`<div class="stat-row" onclick="showDetail('${p.id}')">
@@ -421,10 +479,11 @@ function renderStats(){
           ${p.streak>=2?badge("🔥"+p.streak,"#fb923c"):""}
           ${mvpC[p.id]?badge("⭐"+mvpC[p.id],"#a78bfa"):""}
           ${badge(p.type,typeColor(p.type))}
+          ${p.debt?badge("🚫 debe "+p.debt.amount+"€","#ef4444"):""}
         </div>
         <div class="bar-bg"><div class="bar-fill" style="width:${(p.display/10)*100}%;background:${p.avg!==null?"#4ade80":"#475569"}"></div></div>
         <div style="color:#475569;font-size:11px;display:flex;gap:10px;flex-wrap:wrap">
-          <span>✅ ${p.vv}</span>${p.pv>0?`<span style="color:#fbbf2466">⏳ ${p.pv}</span>`:""}
+          <span>✅ ${p.vv}</span>${p.pv>0?`<span style="color:#fbbf2466">⏳${p.pv}</span>`:""}
           <span>💶 ${p.pay.paid}/${p.pay.total}</span>${p.avg===null?"<span>· preliminar</span>":""}
         </div>
       </div>
@@ -433,46 +492,37 @@ function renderStats(){
   });
   html+="</div>";
 
-  // MVPs
   if(Object.keys(mvpC).length){
     html+=`<div class="card"><div class="card-title">⭐ MVPs históricos</div>`;
     Object.entries(mvpC).sort((a,b)=>b[1]-a[1]).forEach(([pid,c])=>{
       const pl=D.players.find(p=>p.id===pid);
-      html+=`<div style="display:flex;align-items:center;gap:10px;background:#0f172a;border-radius:8px;padding:8px 14px;margin-bottom:6px">
-        <span style="flex:1;color:#e2e8f0;font-weight:600">${pl?.name||"?"}</span>
-        <span style="color:#a78bfa;font-weight:700">⭐ × ${c}</span>
-      </div>`;
+      html+=`<div style="display:flex;align-items:center;background:#0f172a;border-radius:8px;padding:8px 14px;margin-bottom:6px"><span style="flex:1;color:#e2e8f0;font-weight:600">${pl?.name||"?"}</span><span style="color:#a78bfa;font-weight:700">⭐ × ${c}</span></div>`;
     });
     html+="</div>";
   }
 
-  // Resumen
   const totalValid=D.matches.reduce((s,m)=>s+Object.entries(m.votes||{}).filter(([vid])=>m.paid?.[vid]).length,0);
   html+=`<div class="card"><div class="card-title">📊 Resumen</div>
     <div class="summary-grid">
       <div class="summary-box"><div class="summary-num">${D.players.length}</div><div class="summary-label">Jugadores</div></div>
       <div class="summary-box"><div class="summary-num">${D.matches.length}</div><div class="summary-label">Partidos</div></div>
       <div class="summary-box"><div class="summary-num">${totalValid}</div><div class="summary-label">Votos válidos</div></div>
-    </div>
-  </div>`;
+    </div></div>`;
 
   document.getElementById("stats-main").innerHTML=html;
   document.getElementById("stats-detail").classList.add("hidden");
   document.getElementById("stats-main").classList.remove("hidden");
 }
 
-function showDetail(pid){
-  statsDetail=pid;
-  renderStatsDetail(pid);
-}
+function showDetail(pid){statsDetail=pid;renderStatsDetail(pid);}
 function renderStatsDetail(pid){
   const p=D.players.find(x=>x.id===pid);if(!p){statsDetail=null;renderStats();return;}
   const sm=[...D.matches].sort((a,b)=>a.date.localeCompare(b.date));
-  const avg=calcAvg(pid,D.matches);
-  const pay=calcPay(pid),streak=calcStreak(pid);
+  const avg=calcAvg(pid,D.matches),pay=calcPay(pid),streak=calcStreak(pid);
   const mvpC={};D.matches.forEach(m=>{const mvp=getMVP(m);if(mvp)mvpC[mvp.id]=(mvpC[mvp.id]||0)+1;});
   const vv=D.matches.reduce((acc,m)=>{if(!m.votes)return acc;for(const[vid,v]of Object.entries(m.votes))if(m.paid?.[vid]&&v[pid]!==undefined)acc++;return acc;},0);
   const pm=sm.filter(m=>m.playerIds.includes(pid));
+  const debt=getPendingDebt(pid);
 
   let html=`<button class="back-btn" onclick="backToStats()">← Volver al ranking</button>
   <div class="card">
@@ -483,6 +533,7 @@ function renderStatsDetail(pid){
           ${badge(p.type,typeColor(p.type))}
           ${streak>=2?badge("🔥 "+streak+" seguidos","#fb923c"):""}
           ${mvpC[pid]?badge("⭐ "+mvpC[pid]+"x MVP","#a78bfa"):""}
+          ${debt?badge("🚫 debe "+debt.amount+"€","#ef4444"):""}
         </div>
       </div>
       <div style="text-align:right">
@@ -490,25 +541,24 @@ function renderStatsDetail(pid){
         <div style="color:#64748b;font-size:12px">media</div>
       </div>
     </div>
+    ${debt?`<div style="background:#ef444411;border:1px solid #ef444444;border-radius:8px;padding:12px;margin-bottom:12px;color:#ef4444;font-size:13px">🚫 Deuda pendiente de ${debt.amount}€ del partido del ${debt.matchDate}</div>`:""}
     <div class="summary-grid">
       <div class="summary-box"><div class="summary-num" style="font-size:20px">${pay.total}</div><div class="summary-label">Partidos</div></div>
       <div class="summary-box"><div class="summary-num" style="font-size:20px">${pay.paid}/${pay.total}</div><div class="summary-label">Pagos</div></div>
       <div class="summary-box"><div class="summary-num" style="font-size:20px">${vv}</div><div class="summary-label">Votos válidos</div></div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-title">Historial de partidos</div>`;
+  <div class="card"><div class="card-title">Historial de partidos</div>`;
   [...pm].reverse().forEach(m=>{
     const ma=calcMatchAvg(pid,m),isMvp=getMVP(m)?.id===pid,pd=m.paid?.[pid];
     html+=`<div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:8px;padding:10px 14px;margin-bottom:6px;flex-wrap:wrap">
       <span style="color:#94a3b8;font-size:13px;min-width:80px">${m.date}</span>
       ${isMvp?badge("⭐ MVP","#a78bfa"):""}
-      ${pd?badge("✓ Pagado","#fbbf24"):badge("Sin pago","#64748b")}
+      ${pd?badge("✓ Pagado","#fbbf24"):badge("Sin pago","#ef4444")}
       <span style="margin-left:auto;color:${ma!==null?"#4ade80":"#475569"};font-weight:700">${ma!==null?"★ "+ma.toFixed(1):pd?"sin votos":"no válido"}</span>
     </div>`;
   });
   html+="</div>";
-
   document.getElementById("stats-detail").innerHTML=html;
   document.getElementById("stats-detail").classList.remove("hidden");
   document.getElementById("stats-main").classList.add("hidden");
@@ -527,26 +577,33 @@ function adminLogin(){
     document.getElementById("admin-error").classList.remove("hidden");
   }
 }
+
 function renderAdmin(){
   if(!isAdmin)return;
   document.getElementById("admin-panel").classList.remove("hidden");
   const suggested=D.matchDay!==null?nextDay(D.matchDay):null;
-  let html=`
-  <div id="flash-admin"></div>
+
+  let html=`<div id="flash-admin"></div>
+
+  <!-- Export -->
+  <div class="card" style="border-color:#38bdf844">
+    <div class="card-title" style="color:#38bdf8">📤 Exportar datos</div>
+    <p style="color:#94a3b8;font-size:13px;margin-bottom:12px">Genera un código y mándalo por WhatsApp. Los compañeros lo pegan en la pantalla principal para sincronizarse.</p>
+    <button class="btn btn-full" style="background:#38bdf8;color:#0f172a;margin-bottom:10px" onclick="exportData()">Generar y copiar código</button>
+    <textarea id="export-output" class="hidden" rows="3" readonly style="background:#0f172a;border:1px solid #334155;border-radius:8px;color:#94a3b8;padding:10px 12px;font-size:13px;width:100%;resize:none;word-break:break-all"></textarea>
+  </div>
 
   <!-- Config -->
   <div class="card">
     <div class="card-title">⚙️ Configuración</div>
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
-      <div>
-        <label>Día fijo de partido</label>
+      <div><label>Día fijo de partido</label>
         <select class="styled" style="width:auto" onchange="saveConfig('day',this.value)">
           <option value="">Sin día fijo</option>
           ${DAYS.map((d,i)=>`<option value="${i}"${D.matchDay===i?" selected":""}>${d}</option>`).join("")}
         </select>
       </div>
-      <div>
-        <label>Coste del campo (€)</label>
+      <div><label>Coste del campo (€)</label>
         <input type="number" min="1" value="${D.fieldCost||10}" style="width:100px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 12px;font-size:16px" onchange="saveConfig('cost',this.value)"/>
       </div>
     </div>
@@ -562,11 +619,11 @@ function renderAdmin(){
     <div class="col">
       <div><label>Nombre</label><input type="text" id="new-name" placeholder="Nombre del jugador" style="background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 12px;font-size:16px;width:100%"/></div>
       <div><label>Tipo</label>
-        <select id="new-type" class="styled" style="width:auto" onchange="renderAdmin()">
+        <select id="new-type" class="styled" style="width:auto" onchange="togglePrelim()">
           <option value="fijo">Fijo</option><option value="sustituto">Sustituto</option><option value="nuevo">Nuevo</option>
         </select>
       </div>
-      <div id="prelim-section" class="${document.getElementById('new-type')?.value==='nuevo'?'':'hidden'}">
+      <div id="prelim-section" class="hidden">
         <label>Puntuación preliminar: <span id="prelim-val">5</span></label>
         <input type="range" min="1" max="10" value="5" id="prelim-rating" oninput="document.getElementById('prelim-val').textContent=this.value" style="width:100%;accent-color:#4ade80"/>
       </div>
@@ -579,13 +636,14 @@ function renderAdmin(){
     <div class="card-title">👥 Jugadores (${D.players.length})</div>
     ${D.players.length===0?'<p style="color:#64748b">No hay jugadores todavía.</p>':
       D.players.map(p=>{
-        const avg=calcAvg(p.id,D.matches),streak=calcStreak(p.id),trend=calcTrend(p.id);
-        const trendColor=trend==="↑"?"#4ade80":trend==="↓"?"#ef4444":"#475569";
+        const avg=calcAvg(p.id,D.matches),streak=calcStreak(p.id),trend=calcTrend(p.id),debt=getPendingDebt(p.id);
+        const tc=trend==="↑"?"#4ade80":trend==="↓"?"#ef4444":"#475569";
         return`<div class="player-row">
           <span style="flex:1;color:#e2e8f0;font-weight:600">${p.name}</span>
+          ${debt?badge("🚫 debe","#ef4444"):""}
           ${streak>=3?badge("🔥"+streak,"#fb923c"):""}
           ${badge(p.type,typeColor(p.type))}
-          <span style="color:${trendColor}">${trend}</span>
+          <span style="color:${tc}">${trend}</span>
           <span style="color:#4ade80;font-weight:700">${avg!==null?"★ "+avg.toFixed(1):"≈"+(p.prelimRating||5)}</span>
           <button onclick="removePlayer('${p.id}')" style="background:none;border:none;color:#ef4444;font-size:18px;padding:0 4px">✕</button>
         </div>`;
@@ -598,7 +656,7 @@ function renderAdmin(){
     <div class="card-title">⚽ Crear partido</div>
     <div class="col">
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
-        <div><label>Fecha</label><input type="date" id="match-date" value="${new Date().toISOString().split('T')[0]}" style="background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 12px;font-size:16px"/></div>
+        <div><label>Fecha</label><input type="date" id="match-date" value="${new Date().toISOString().split("T")[0]}" style="background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 12px;font-size:16px"/></div>
         <div><label>Coste total (€)</label><input type="number" id="match-cost" value="${D.fieldCost||10}" min="1" style="width:100px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px 12px;font-size:16px"/></div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -606,8 +664,13 @@ function renderAdmin(){
         <button onclick="selectAllMatch()" style="background:none;border:none;color:#4ade80;font-size:14px;font-weight:600">Seleccionar todos</button>
       </div>
       <div id="match-players">
-        ${D.players.map(p=>`<button class="chip" id="mp-${p.id}" onclick="toggleMP('${p.id}')">${p.name}</button>`).join("")}
+        ${D.players.map(p=>{
+          const debt=getPendingDebt(p.id);
+          return`<button class="chip${debt?" blocked":""}" id="mp-${p.id}" onclick="toggleMP('${p.id}','${!!debt}')">${p.name}${debt?" 🚫":""}
+          </button>`;
+        }).join("")}
       </div>
+      <div id="match-cost-per" style="color:#94a3b8;font-size:13px"></div>
       <button class="btn" onclick="createMatch()">Crear partido</button>
     </div>
   </div>
@@ -638,25 +701,37 @@ function renderAdmin(){
       }).join("")
     }
   </div>`;
-  document.getElementById("admin-panel").innerHTML=html;
 
-  // Restore new-type onchange
-  const nt=document.getElementById("new-type");
-  if(nt)nt.onchange=()=>{
-    const ps=document.getElementById("prelim-section");
-    if(ps)ps.className=nt.value==="nuevo"?"":"hidden";
-  };
+  document.getElementById("admin-panel").innerHTML=html;
 }
 
-let mpSelected=[];
-function toggleMP(id){
+function togglePrelim(){
+  const nt=document.getElementById("new-type");
+  const ps=document.getElementById("prelim-section");
+  if(nt&&ps)ps.className=nt.value==="nuevo"?"":"hidden";
+}
+function toggleMP(id,hasDebt){
+  if(hasDebt==="true"){
+    flash("flash-admin","Este jugador tiene una deuda pendiente y no puede apuntarse hasta que pague","red");
+    return;
+  }
   mpSelected=mpSelected.includes(id)?mpSelected.filter(x=>x!==id):[...mpSelected,id];
   const el=document.getElementById("mp-"+id);
   if(el)el.className="chip"+(mpSelected.includes(id)?" active":"");
+  const cpp=document.getElementById("match-cost-per");
+  const cost=parseFloat(document.getElementById("match-cost")?.value)||D.fieldCost||10;
+  if(cpp)cpp.textContent=mpSelected.length>0?`${mpSelected.length} jugadores · ${(cost/mpSelected.length).toFixed(2)}€/jugador`:"";
 }
 function selectAllMatch(){
-  mpSelected=D.players.map(p=>p.id);
-  D.players.forEach(p=>{const el=document.getElementById("mp-"+p.id);if(el)el.className="chip active";});
+  const debtors=new Set(D.players.filter(p=>getPendingDebt(p.id)).map(p=>p.id));
+  mpSelected=D.players.filter(p=>!debtors.has(p.id)).map(p=>p.id);
+  D.players.forEach(p=>{
+    const el=document.getElementById("mp-"+p.id);
+    if(el)el.className="chip"+(mpSelected.includes(p.id)?" active":debtors.has(p.id)?" blocked":"");
+  });
+  const cpp=document.getElementById("match-cost-per");
+  const cost=parseFloat(document.getElementById("match-cost")?.value)||D.fieldCost||10;
+  if(cpp&&mpSelected.length)cpp.textContent=`${mpSelected.length} jugadores · ${(cost/mpSelected.length).toFixed(2)}€/jugador`;
 }
 function saveConfig(type,val){
   if(type==="day")D.matchDay=val===""?null:parseInt(val);
@@ -689,6 +764,20 @@ function closeMatch(id){
 function deleteMatch(id){
   if(!confirm("¿Eliminar este partido y sus datos?"))return;
   D.matches=D.matches.filter(m=>m.id!==id);save(D);renderAdmin();
+}
+
+// ── Export ──
+function exportData(){
+  const json=JSON.stringify(D);
+  const b64=btoa(unescape(encodeURIComponent(json)));
+  const el=document.getElementById("export-output");
+  if(el){el.value=b64;el.classList.remove("hidden");el.select();}
+  try{
+    navigator.clipboard.writeText(b64);
+    flash("flash-admin","Código copiado ✓ Pégalo en WhatsApp para que los compañeros lo importen");
+  }catch{
+    flash("flash-admin","Copia el código de abajo y mándalo por WhatsApp");
+  }
 }
 
 // ── Init ──
